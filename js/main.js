@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // Scene
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB); // Sky blue background
+scene.background = new THREE.Color(0x87CEEB);
 
 // Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
@@ -16,7 +16,6 @@ document.body.appendChild(renderer.domElement);
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambientLight);
-
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
 directionalLight.position.set(10, 10, 5);
 scene.add(directionalLight);
@@ -29,6 +28,7 @@ ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
 // Keyboard state
+// Note: Arrow keys are 'ArrowUp', 'ArrowDown', etc. to match event.key
 const keys = {
     'z': false, 'q': false, 's': false, 'd': false,
     'arrowup': false, 'arrowdown': false, 'arrowleft': false, 'arrowright': false
@@ -56,7 +56,7 @@ const solarEngineCheckbox = document.getElementById('solar-engine');
 
 // Airplane model & physics
 let plane;
-let mixer; // For animations
+let mixer;
 let propellerAction;
 let speed = 0;
 let verticalSpeed = 0;
@@ -70,7 +70,8 @@ const config = {
     friction: 0.005,
     turnSpeed: 0.02,
     takeoffSpeed: 0.4,
-    liftForce: 0.01,
+    stallSpeed: 0.35, // Corresponds to 70 km/h (70 / 200)
+    liftForce: 0.01, // Extra lift from controls
     gravity: 0.005,
     fuelConsumption: 0.02,
     maxPitch: Math.PI / 4,
@@ -90,29 +91,24 @@ function resetGame() {
     if (propellerAction) propellerAction.stop();
 }
 
-// Load Plane Model
 const loader = new GLTFLoader();
 loader.load('assets/aviao_low_poly.glb', (gltf) => {
     plane = gltf.scene;
     plane.position.y = 0.5;
     scene.add(plane);
 
-    console.log("Animations in aviao_low_poly.glb:", gltf.animations);
     if (gltf.animations.length > 0) {
         mixer = new THREE.AnimationMixer(plane);
         propellerAction = mixer.clipAction(gltf.animations[0]);
         propellerAction.setLoop(THREE.LoopRepeat);
     }
-
     resetGame();
-
 }, undefined, (error) => {
     console.error("An error occurred while loading the model:", error);
 });
 
 function updateCamera() {
     if (plane) {
-        // Corrected offset to be behind the plane
         const idealOffset = new THREE.Vector3(0, 5, -12);
         idealOffset.applyQuaternion(plane.quaternion);
         const targetPosition = plane.position.clone().add(idealOffset);
@@ -132,7 +128,6 @@ function updateUI() {
 
 const clock = new THREE.Clock();
 
-// Animation Loop
 function animate() {
     const delta = clock.getDelta();
     requestAnimationFrame(animate);
@@ -140,7 +135,6 @@ function animate() {
     if (plane) {
         engineOn = (keys['z'] && fuel > 0);
 
-        // Propeller animation
         if (mixer) {
             if (engineOn && !propellerAction.isRunning()) {
                 propellerAction.play();
@@ -153,7 +147,6 @@ function animate() {
             mixer.update(delta);
         }
 
-        // Fuel consumption
         if (engineOn && !solarEngineCheckbox.checked) {
             fuel -= config.fuelConsumption;
             if (fuel <= 0) {
@@ -162,29 +155,38 @@ function animate() {
             }
         }
 
-        // Physics calculations
         if (engineOn) speed += config.acceleration;
         if (keys['s']) speed -= config.braking;
         speed -= config.friction * speed;
         speed = Math.max(0, speed);
 
-        // Takeoff logic
         if (!isAirborne && speed > config.takeoffSpeed && keys['arrowdown']) {
             isAirborne = true;
-            verticalSpeed = config.liftForce * 5;
         }
 
         if (isAirborne) {
-            verticalSpeed -= config.gravity;
+            // Correct stall implementation
+            if (speed > config.stallSpeed) {
+                // Not stalled: generate baseline lift to counteract gravity
+                // and allow player to add more lift.
+                verticalSpeed += config.gravity; // Baseline lift
 
-            if (keys['arrowdown']) { // Pull up
-                plane.rotation.x = Math.max(-config.maxPitch, plane.rotation.x - 0.01);
-                verticalSpeed += config.liftForce * (speed / config.takeoffSpeed);
+                if (keys['arrowdown']) { // Add extra lift for climbing
+                    plane.rotation.x = Math.max(-config.maxPitch, plane.rotation.x - 0.01);
+                    verticalSpeed += config.liftForce * (speed / config.takeoffSpeed);
+                }
             }
-            if (keys['arrowup']) { // Nose down
+            // When stalled (speed <= stallSpeed), no lift is generated.
+            // Gravity will be applied below, causing descent.
+
+            if (keys['arrowup']) { // Pitch down is always possible
                 plane.rotation.x = Math.min(config.maxPitch, plane.rotation.x + 0.01);
             }
 
+            // Always apply gravity
+            verticalSpeed -= config.gravity;
+
+            // Roll controls
             let turn = 0;
             if (keys['q']) turn = 1;
             if (keys['d']) turn = -1;
@@ -194,9 +196,9 @@ function animate() {
 
             plane.position.y += verticalSpeed;
 
+            // Crash detection
             if (plane.position.y < 0.5) {
                 if (Math.abs(plane.rotation.x) > Math.PI / 4 || verticalSpeed < -0.2) {
-                    console.log("Crashed!");
                     resetGame();
                 } else {
                     plane.position.y = 0.5;
@@ -213,10 +215,11 @@ function animate() {
             }
             plane.rotation.x *= 0.95;
             plane.rotation.z *= 0.95;
+            verticalSpeed = 0;
         }
 
-        // Corrected movement to be along the plane's forward direction
-        plane.translateZ(speed);
+        // Use negative Z for forward movement
+        plane.translateZ(-speed);
     }
 
     updateCamera();
