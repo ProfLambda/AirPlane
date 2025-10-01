@@ -146,21 +146,24 @@ function animate() {
         // Takeoff
         if (!isAirborne && speed > takeoffSpeed) {
             isAirborne = true;
-            verticalSpeed = liftForce; // Initial upward boost to take off
         }
 
         if (isAirborne) {
             // Apply gravity
             verticalSpeed -= gravity;
 
-            // Pitch controls (up/down)
+            // Apply sustained lift from wings, proportional to speed
+            const sustainedLift = liftForce * (speed / takeoffSpeed) * 1.5; // Added a multiplier for more lift
+            verticalSpeed += sustainedLift;
+
+            // Pitch controls (up/down) add or subtract from the vertical speed
             if (keys.arrowup) {
                 plane.rotation.x -= 0.01;
-                verticalSpeed += liftForce * (speed / takeoffSpeed);
+                verticalSpeed += liftForce * 0.5; // Extra boost for climbing
             }
             if (keys.arrowdown) {
                 plane.rotation.x += 0.01;
-                verticalSpeed -= liftForce * 0.5;
+                verticalSpeed -= liftForce * 0.5; // Penalty for diving
             }
 
             // Roll controls (left/right)
@@ -177,10 +180,12 @@ function animate() {
             // Crash detection
             if (plane.position.y < planeInitialHeight) {
                 const angle = plane.rotation.x;
-                if (Math.abs(angle) > Math.PI / 4) { // Crash if angle is too steep
-                    console.log("Crashed!");
+                // A safe landing requires low vertical speed.
+                if (Math.abs(angle) > Math.PI / 4 || Math.abs(verticalSpeed) > 0.05) { // Crash if angle is too steep or vertical speed is too high
+                    console.log("Crashed! Angle:", angle, "VSpeed:", verticalSpeed);
                     resetGame();
                 } else { // Landed
+                    console.log("Landed safely.");
                     plane.position.y = planeInitialHeight;
                     verticalSpeed = 0;
                     isAirborne = false;
