@@ -7,7 +7,6 @@ scene.background = new THREE.Color(0x87CEEB); // Sky blue background
 
 // Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-camera.position.set(0, 5, 15);
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -23,7 +22,7 @@ directionalLight.position.set(10, 10, 5);
 scene.add(directionalLight);
 
 // Ground
-const groundGeometry = new THREE.PlaneGeometry(1000, 1000, 10, 10);
+const groundGeometry = new THREE.PlaneGeometry(2000, 2000);
 const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x90ee90 });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
@@ -32,15 +31,13 @@ scene.add(ground);
 // Keyboard state
 const keys = {
     'z': false, 'q': false, 's': false, 'd': false,
-    'ArrowUp': false, 'ArrowDown': false, 'ArrowLeft': false, 'ArrowRight': false
+    'arrowup': false, 'arrowdown': false, 'arrowleft': false, 'arrowright': false
 };
 
 window.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
     if (keys.hasOwnProperty(key)) {
         keys[key] = true;
-    } else if (keys.hasOwnProperty(event.key)) {
-        keys[event.key] = true;
     }
 });
 
@@ -48,8 +45,6 @@ window.addEventListener('keyup', (event) => {
     const key = event.key.toLowerCase();
     if (keys.hasOwnProperty(key)) {
         keys[key] = false;
-    } else if (keys.hasOwnProperty(event.key)) {
-        keys[event.key] = false;
     }
 });
 
@@ -105,7 +100,6 @@ loader.load('assets/aviao_low_poly.glb', (gltf) => {
     console.log("Animations in aviao_low_poly.glb:", gltf.animations);
     if (gltf.animations.length > 0) {
         mixer = new THREE.AnimationMixer(plane);
-        // Assuming the first animation is the propeller
         propellerAction = mixer.clipAction(gltf.animations[0]);
         propellerAction.setLoop(THREE.LoopRepeat);
     }
@@ -118,16 +112,13 @@ loader.load('assets/aviao_low_poly.glb', (gltf) => {
 
 function updateCamera() {
     if (plane) {
-        const idealOffset = new THREE.Vector3(0, 5, 12);
+        // Corrected offset to be behind the plane
+        const idealOffset = new THREE.Vector3(0, 5, -12);
         idealOffset.applyQuaternion(plane.quaternion);
-        const idealLookat = new THREE.Vector3(0, 2, -10);
-        idealLookat.applyQuaternion(plane.quaternion);
-
         const targetPosition = plane.position.clone().add(idealOffset);
-        const lookatPosition = plane.position.clone().add(idealLookat);
 
         camera.position.lerp(targetPosition, 0.1);
-        camera.lookAt(lookatPosition);
+        camera.lookAt(plane.position);
     }
 }
 
@@ -156,7 +147,9 @@ function animate() {
             } else if (!engineOn && propellerAction.isRunning()) {
                 propellerAction.stop();
             }
-            propellerAction.timeScale = speed / config.takeoffSpeed * 2;
+            if(propellerAction.isRunning()) {
+                propellerAction.timeScale = Math.max(0, speed / config.takeoffSpeed * 2);
+            }
             mixer.update(delta);
         }
 
@@ -172,67 +165,61 @@ function animate() {
         // Physics calculations
         if (engineOn) speed += config.acceleration;
         if (keys['s']) speed -= config.braking;
-        speed -= config.friction * speed; // Simplified friction
+        speed -= config.friction * speed;
         speed = Math.max(0, speed);
 
         // Takeoff logic
-        if (!isAirborne && speed > config.takeoffSpeed && keys['ArrowDown']) {
+        if (!isAirborne && speed > config.takeoffSpeed && keys['arrowdown']) {
             isAirborne = true;
             verticalSpeed = config.liftForce * 5;
         }
 
         if (isAirborne) {
-            // Apply gravity
             verticalSpeed -= config.gravity;
 
-            // Pitch controls (up/down)
-            if (keys['ArrowDown']) { // Pull up
+            if (keys['arrowdown']) { // Pull up
                 plane.rotation.x = Math.max(-config.maxPitch, plane.rotation.x - 0.01);
                 verticalSpeed += config.liftForce * (speed / config.takeoffSpeed);
             }
-            if (keys['ArrowUp']) { // Nose down
+            if (keys['arrowup']) { // Nose down
                 plane.rotation.x = Math.min(config.maxPitch, plane.rotation.x + 0.01);
             }
 
-            // Roll controls for turning
             let turn = 0;
             if (keys['q']) turn = 1;
             if (keys['d']) turn = -1;
-            plane.rotation.z = Math.max(-config.maxRoll, Math.min(config.maxRoll, plane.rotation.z + turn * 0.02));
+            plane.rotation.z += turn * 0.02;
+            plane.rotation.z *= 0.95;
+            plane.rotation.z = Math.max(-config.maxRoll, Math.min(config.maxRoll, plane.rotation.z));
 
-            // Yaw based on roll
-            plane.rotation.y += plane.rotation.z * speed * 0.1;
+            // Apply yaw based on roll
+            plane.rotation.y -= plane.rotation.z * speed * 0.1;
 
-            // Update vertical position
             plane.position.y += verticalSpeed;
 
-            // Crash detection
             if (plane.position.y < 0.5) {
-                const angle = plane.rotation.x;
-                if (Math.abs(angle) > Math.PI / 4 || verticalSpeed < -0.2) {
+                if (Math.abs(plane.rotation.x) > Math.PI / 4 || verticalSpeed < -0.2) {
                     console.log("Crashed!");
                     resetGame();
-                } else { // Landed
+                } else {
                     plane.position.y = 0.5;
                     verticalSpeed = 0;
                     isAirborne = false;
-                    plane.rotation.x = 0;
-                    plane.rotation.z = 0;
+                    plane.rotation.x *= 0.5;
+                    plane.rotation.z *= 0.5;
                 }
             }
-        } else { // On the ground
+        } else {
             if (speed > 0.01) {
                 if (keys['q']) plane.rotation.y += config.turnSpeed;
                 if (keys['d']) plane.rotation.y -= config.turnSpeed;
             }
-            // Reset pitch/roll on ground
             plane.rotation.x *= 0.95;
             plane.rotation.z *= 0.95;
         }
 
-        // Update plane position based on its forward direction
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(plane.quaternion);
-        plane.position.add(forward.multiplyScalar(speed));
+        // Corrected movement to be along the plane's forward direction
+        plane.translateZ(speed);
     }
 
     updateCamera();
@@ -242,7 +229,6 @@ function animate() {
 
 animate();
 
-// Handle window resizing
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
