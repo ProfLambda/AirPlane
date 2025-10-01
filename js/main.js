@@ -28,7 +28,6 @@ ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
 // Keyboard state
-// Note: Arrow keys are 'ArrowUp', 'ArrowDown', etc. to match event.key
 const keys = {
     'z': false, 'q': false, 's': false, 'd': false,
     'arrowup': false, 'arrowdown': false, 'arrowleft': false, 'arrowright': false
@@ -70,8 +69,8 @@ const config = {
     friction: 0.005,
     turnSpeed: 0.02,
     takeoffSpeed: 0.4,
-    stallSpeed: 0.35, // Corresponds to 70 km/h (70 / 200)
-    liftForce: 0.01, // Extra lift from controls
+    stallSpeed: 0.35, // Corresponds to 70 km/h
+    liftForce: 0.01,
     gravity: 0.005,
     fuelConsumption: 0.02,
     maxPitch: Math.PI / 4,
@@ -109,11 +108,16 @@ loader.load('assets/aviao_low_poly.glb', (gltf) => {
 
 function updateCamera() {
     if (plane) {
-        const idealOffset = new THREE.Vector3(0, 5, -12);
+        // A fixed offset, higher and further back. The Z value is positive
+        // because the plane's forward direction is along the -Z axis.
+        const idealOffset = new THREE.Vector3(0, 8, 18);
         idealOffset.applyQuaternion(plane.quaternion);
         const targetPosition = plane.position.clone().add(idealOffset);
 
-        camera.position.lerp(targetPosition, 0.1);
+        // Apply position directly without smoothing for a "fixed" feel.
+        camera.position.copy(targetPosition);
+
+        // Always look at the plane's center. This keeps the camera stable during rolls.
         camera.lookAt(plane.position);
     }
 }
@@ -165,33 +169,30 @@ function animate() {
         }
 
         if (isAirborne) {
-            // Correct stall implementation
+            let totalLift = 0;
+            // Stall Logic: Only generate lift if not stalled.
             if (speed > config.stallSpeed) {
-                // Not stalled: generate baseline lift to counteract gravity
-                // and allow player to add more lift.
-                verticalSpeed += config.gravity; // Baseline lift
-
-                if (keys['arrowdown']) { // Add extra lift for climbing
+                // Baseline lift to counteract gravity for level flight.
+                totalLift = config.gravity;
+                // Player-controlled lift for climbing.
+                if (keys['arrowdown']) {
                     plane.rotation.x = Math.max(-config.maxPitch, plane.rotation.x - 0.01);
-                    verticalSpeed += config.liftForce * (speed / config.takeoffSpeed);
+                    totalLift += config.liftForce;
                 }
             }
-            // When stalled (speed <= stallSpeed), no lift is generated.
-            // Gravity will be applied below, causing descent.
 
-            if (keys['arrowup']) { // Pitch down is always possible
+            if (keys['arrowup']) {
                 plane.rotation.x = Math.min(config.maxPitch, plane.rotation.x + 0.01);
             }
 
-            // Always apply gravity
-            verticalSpeed -= config.gravity;
+            verticalSpeed += totalLift - config.gravity;
 
-            // Roll controls
+            // Roll controls (no yaw)
             let turn = 0;
             if (keys['q']) turn = 1;
             if (keys['d']) turn = -1;
             plane.rotation.z += turn * 0.02;
-            plane.rotation.z *= 0.95;
+            plane.rotation.z *= 0.95; // Dampen roll
             plane.rotation.z = Math.max(-config.maxRoll, Math.min(config.maxRoll, plane.rotation.z));
 
             plane.position.y += verticalSpeed;
@@ -208,7 +209,7 @@ function animate() {
                     plane.rotation.z *= 0.5;
                 }
             }
-        } else {
+        } else { // On the ground
             if (speed > 0.01) {
                 if (keys['q']) plane.rotation.y += config.turnSpeed;
                 if (keys['d']) plane.rotation.y -= config.turnSpeed;
@@ -218,7 +219,7 @@ function animate() {
             verticalSpeed = 0;
         }
 
-        // Use negative Z for forward movement
+        // Forward movement is along the plane's -Z axis
         plane.translateZ(-speed);
     }
 
