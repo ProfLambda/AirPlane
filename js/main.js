@@ -110,7 +110,7 @@ function updateCamera() {
     if (plane) {
         // A fixed offset, higher and further back. The Z value is positive
         // because the plane's forward direction is along the -Z axis.
-        const idealOffset = new THREE.Vector3(0, 8, 18);
+        const idealOffset = new THREE.Vector3(0, 12, 25);
         idealOffset.applyQuaternion(plane.quaternion);
         const targetPosition = plane.position.clone().add(idealOffset);
 
