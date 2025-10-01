@@ -56,6 +56,7 @@ const solarEngineCheckbox = document.getElementById('solar-engine');
 
 // Airplane model & physics
 let plane;
+let planeInitialHeight = 0;
 let speed = 0;
 let verticalSpeed = 0;
 let isAirborne = false;
@@ -74,7 +75,11 @@ const loader = new GLTFLoader();
 loader.load('assets/cartoon_plane.glb', (gltf) => {
     plane = gltf.scene;
     scene.add(plane);
-    plane.position.y = 0.5; // Adjusted initial position
+
+    // Calculate bounding box to set the initial position correctly
+    const box = new THREE.Box3().setFromObject(plane);
+    planeInitialHeight = -box.min.y;
+    plane.position.y = planeInitialHeight;
 
     // Log animations
     console.log('Animations found in GLB:', gltf.animations);
@@ -113,7 +118,7 @@ function updateUI() {
 
 function resetGame() {
     if (plane) {
-        plane.position.set(0, 0.5, 0); // Adjusted for new ground level
+        plane.position.set(0, planeInitialHeight, 0);
         plane.rotation.set(0, 0, 0);
     }
     speed = 0;
@@ -162,13 +167,13 @@ function animate() {
             plane.position.y += verticalSpeed;
 
             // Crash detection
-            if (plane.position.y < 0.5) {
+            if (plane.position.y < planeInitialHeight) {
                 const angle = plane.rotation.x;
                 if (Math.abs(angle) > Math.PI / 4) { // Crash if angle is too steep
                     console.log("Crashed!");
                     resetGame();
                 } else { // Landed
-                    plane.position.y = 0.5;
+                    plane.position.y = planeInitialHeight;
                     verticalSpeed = 0;
                     isAirborne = false;
                     plane.rotation.x = 0;
