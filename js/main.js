@@ -192,9 +192,6 @@ function animate() {
             plane.rotation.z *= 0.95;
             plane.rotation.z = Math.max(-config.maxRoll, Math.min(config.maxRoll, plane.rotation.z));
 
-            // Apply yaw based on roll
-            plane.rotation.y -= plane.rotation.z * speed * 0.1;
-
             plane.position.y += verticalSpeed;
 
             if (plane.position.y < 0.5) {
