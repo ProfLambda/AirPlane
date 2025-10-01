@@ -15,7 +15,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // Ground
-const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+const groundGeometry = new THREE.PlaneGeometry(20000, 20000); // Increased size for infinite feel
 const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x556B2F });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
@@ -92,7 +92,7 @@ loader.load('assets/cartoon_plane.glb', (gltf) => {
 
 function updateCamera() {
     if (plane) {
-        const offset = new THREE.Vector3(0, 2, 5);
+        const offset = new THREE.Vector3(0, 25, 80); // EXTREMELY aggressive camera offset
         offset.applyQuaternion(plane.quaternion);
         camera.position.copy(plane.position).add(offset);
         camera.lookAt(plane.position);
@@ -102,7 +102,7 @@ function updateCamera() {
 function updateUI() {
     if (plane) {
         speedEl.textContent = (speed * 200).toFixed(1);
-        altitudeEl.textContent = (plane.position.y * 10).toFixed(1);
+        altitudeEl.textContent = ((plane.position.y - planeInitialHeight) * 10).toFixed(1);
 
         if (!solarEngineCheckbox.checked) {
             fuel -= fuelConsumption;
