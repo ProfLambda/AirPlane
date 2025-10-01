@@ -92,9 +92,16 @@ loader.load('assets/cartoon_plane.glb', (gltf) => {
 
 function updateCamera() {
     if (plane) {
-        const offset = new THREE.Vector3(0, 25, 80); // EXTREMELY aggressive camera offset
-        offset.applyQuaternion(plane.quaternion);
-        camera.position.copy(plane.position).add(offset);
+        // Last attempt with absurdly large values.
+        const offset = new THREE.Vector3(0, 150, 500); // Absurdly large offset
+
+        // Calculate the target camera position by adding the offset to the plane's position
+        const cameraTargetPosition = plane.position.clone().add(offset);
+
+        // Use a faster interpolation for a more responsive feel
+        camera.position.lerp(cameraTargetPosition, 0.2);
+
+        // Always look at the plane
         camera.lookAt(plane.position);
     }
 }
@@ -139,6 +146,7 @@ function animate() {
         // Takeoff
         if (!isAirborne && speed > takeoffSpeed) {
             isAirborne = true;
+            verticalSpeed = liftForce; // Initial upward boost to take off
         }
 
         if (isAirborne) {
@@ -182,6 +190,8 @@ function animate() {
             }
 
         } else { // On the ground
+            plane.position.y = planeInitialHeight; // Lock plane to the ground
+            verticalSpeed = 0;
             if (speed > 0.01) {
                 if (keys.q) plane.rotation.y += turnSpeed;
                 if (keys.d) plane.rotation.y -= turnSpeed;
