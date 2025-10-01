@@ -143,9 +143,11 @@ function animate() {
         speed *= (1 - friction);
         speed = Math.max(0, speed);
 
-        // Takeoff
-        if (!isAirborne && speed > takeoffSpeed) {
+        // Takeoff is intentional: requires speed AND pulling up on the stick
+        if (!isAirborne && speed > takeoffSpeed && keys.arrowup) {
             isAirborne = true;
+            // Give a little upward boost to ensure a clean liftoff
+            verticalSpeed = 0.05;
         }
 
         if (isAirborne) {
