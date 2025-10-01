@@ -19,7 +19,7 @@ const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
 const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x556B2F });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.5;
+ground.position.y = 0;
 scene.add(ground);
 
 // Lighting
@@ -74,7 +74,7 @@ const loader = new GLTFLoader();
 loader.load('assets/cartoon_plane.glb', (gltf) => {
     plane = gltf.scene;
     scene.add(plane);
-    plane.position.y = 0;
+    plane.position.y = 0.5; // Adjusted initial position
 
     // Log animations
     console.log('Animations found in GLB:', gltf.animations);
@@ -113,7 +113,7 @@ function updateUI() {
 
 function resetGame() {
     if (plane) {
-        plane.position.set(0, 0, 0);
+        plane.position.set(0, 0.5, 0); // Adjusted for new ground level
         plane.rotation.set(0, 0, 0);
     }
     speed = 0;
@@ -162,13 +162,13 @@ function animate() {
             plane.position.y += verticalSpeed;
 
             // Crash detection
-            if (plane.position.y < -0.4) {
+            if (plane.position.y < 0.5) {
                 const angle = plane.rotation.x;
                 if (Math.abs(angle) > Math.PI / 4) { // Crash if angle is too steep
                     console.log("Crashed!");
                     resetGame();
                 } else { // Landed
-                    plane.position.y = -0.5;
+                    plane.position.y = 0.5;
                     verticalSpeed = 0;
                     isAirborne = false;
                     plane.rotation.x = 0;
